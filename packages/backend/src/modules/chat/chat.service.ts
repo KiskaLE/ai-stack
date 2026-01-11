@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { createOpenRouter, OpenRouterProvider } from '@openrouter/ai-sdk-provider';
-import { generateText } from 'ai';
+import { streamText, generateText } from 'ai';
 
 @Injectable()
 export class ChatService {
@@ -28,5 +28,16 @@ export class ChatService {
         });
 
         return text;
+    }
+
+    async *chatStream(message: string): AsyncGenerator<string> {
+        const result = streamText({
+            model: this.openrouter.chat(this.model),
+            prompt: message,
+        });
+
+        for await (const chunk of result.textStream) {
+            yield chunk;
+        }
     }
 }

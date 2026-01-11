@@ -1,11 +1,25 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { MessageCircle, X, Send } from 'lucide-react';
+
+interface Message {
+    text: string;
+    sender: 'user' | 'bot';
+}
 
 function App() {
     const [isOpen, setIsOpen] = useState(false);
-    const [messages, setMessages] = useState<{ text: string; sender: 'user' | 'bot' }[]>([]);
+    const [messages, setMessages] = useState<Message[]>([]);
     const [input, setInput] = useState('');
     const [isLoading, setIsLoading] = useState(false);
+    const messagesEndRef = useRef<HTMLDivElement>(null);
+
+    const scrollToBottom = () => {
+        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    };
+
+    useEffect(() => {
+        scrollToBottom();
+    }, [messages]);
 
     const toggleChat = () => setIsOpen(!isOpen);
 
@@ -17,22 +31,90 @@ function App() {
         setInput('');
         setIsLoading(true);
 
+        // Add empty bot message that will be streamed into
+        const botMessageIndex = messages.length + 1;
+        setMessages(prev => [...prev, { text: '', sender: 'bot' }]);
+
         try {
             const response = await fetch('http://localhost:3000/api/chat', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ message: userMsg }),
+                body: JSON.stringify({ message: userMsg, stream: true }),
             });
 
             if (!response.ok) {
                 throw new Error('Failed to fetch');
             }
 
-            const data = await response.json();
-            setMessages(prev => [...prev, { text: data.text || 'No response', sender: 'bot' }]);
+            const reader = response.body?.getReader();
+            const decoder = new TextDecoder();
+
+            if (!reader) {
+                throw new Error('No reader available');
+            }
+
+            let accumulatedText = '';
+
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+
+                const chunk = decoder.decode(value, { stream: true });
+                const lines = chunk.split('\n');
+
+                for (const line of lines) {
+                    if (line.startsWith('data: ')) {
+                        const data = line.slice(6);
+                        if (data === '[DONE]') {
+                            break;
+                        }
+                        try {
+                            const parsed = JSON.parse(data);
+                            if (parsed.text) {
+                                accumulatedText += parsed.text;
+                                setMessages(prev => {
+                                    const newMessages = [...prev];
+                                    if (newMessages[botMessageIndex]) {
+                                        newMessages[botMessageIndex] = {
+                                            ...newMessages[botMessageIndex],
+                                            text: accumulatedText,
+                                        };
+                                    }
+                                    return newMessages;
+                                });
+                            }
+                        } catch {
+                            // Skip invalid JSON
+                        }
+                    }
+                }
+            }
+
+            // If no text was received, show error
+            if (!accumulatedText) {
+                setMessages(prev => {
+                    const newMessages = [...prev];
+                    if (newMessages[botMessageIndex]) {
+                        newMessages[botMessageIndex] = {
+                            ...newMessages[botMessageIndex],
+                            text: 'No response received',
+                        };
+                    }
+                    return newMessages;
+                });
+            }
         } catch (error) {
             console.error(error);
-            setMessages(prev => [...prev, { text: 'Error connecting to server.', sender: 'bot' }]);
+            setMessages(prev => {
+                const newMessages = [...prev];
+                if (newMessages[botMessageIndex]) {
+                    newMessages[botMessageIndex] = {
+                        ...newMessages[botMessageIndex],
+                        text: 'Error connecting to server.',
+                    };
+                }
+                return newMessages;
+            });
         } finally {
             setIsLoading(false);
         }
@@ -70,14 +152,10 @@ function App() {
                                     : 'self-start bg-white border border-gray-200 text-gray-700 rounded-bl-sm'
                                     }`}
                             >
-                                {msg.text}
+                                {msg.text || (msg.sender === 'bot' && isLoading ? '▊' : '')}
                             </div>
                         ))}
-                        {isLoading && (
-                            <div className="self-start bg-white border border-gray-200 text-gray-500 rounded-xl rounded-bl-sm px-3.5 py-2.5 text-sm italic shadow-sm">
-                                Typing...
-                            </div>
-                        )}
+                        <div ref={messagesEndRef} />
                     </div>
 
                     <div className="p-3 border-t border-gray-200 flex gap-2 bg-white">
