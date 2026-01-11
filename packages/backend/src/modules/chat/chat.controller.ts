@@ -1,11 +1,9 @@
-import { Controller, Post, Body, HttpException, HttpStatus, Res } from '@nestjs/common';
+import { Controller, Post, Body, HttpException, HttpStatus, Res, UsePipes } from '@nestjs/common';
 import type { Response } from 'express';
-import { ChatService, ChatMessage } from './chat.service';
-
-interface ChatRequestDto {
-    messages: ChatMessage[];
-    stream?: boolean;
-}
+import { ChatService } from './chat.service';
+import { createChatSchema } from './dto/create-chat.dto';
+import type { CreateChatDto } from './dto/create-chat.dto';
+import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
 
 interface ChatResponseDto {
     text: string;
@@ -16,13 +14,11 @@ export class ChatController {
     constructor(private readonly chatService: ChatService) { }
 
     @Post()
+    @UsePipes(new ZodValidationPipe(createChatSchema))
     async chat(
-        @Body() body: ChatRequestDto,
+        @Body() body: CreateChatDto,
         @Res() res: Response,
     ): Promise<void> {
-        if (!body.messages || !Array.isArray(body.messages) || body.messages.length === 0) {
-            throw new HttpException('Messages array is required', HttpStatus.BAD_REQUEST);
-        }
 
         try {
             if (body.stream) {
