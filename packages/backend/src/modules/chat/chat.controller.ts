@@ -1,9 +1,9 @@
 import { Controller, Post, Body, HttpException, HttpStatus, Res } from '@nestjs/common';
 import type { Response } from 'express';
-import { ChatService } from './chat.service';
+import { ChatService, ChatMessage } from './chat.service';
 
 interface ChatRequestDto {
-    message: string;
+    messages: ChatMessage[];
     stream?: boolean;
 }
 
@@ -20,8 +20,8 @@ export class ChatController {
         @Body() body: ChatRequestDto,
         @Res() res: Response,
     ): Promise<void> {
-        if (!body.message || typeof body.message !== 'string') {
-            throw new HttpException('Message is required', HttpStatus.BAD_REQUEST);
+        if (!body.messages || !Array.isArray(body.messages) || body.messages.length === 0) {
+            throw new HttpException('Messages array is required', HttpStatus.BAD_REQUEST);
         }
 
         try {
@@ -32,7 +32,7 @@ export class ChatController {
                 res.setHeader('Connection', 'keep-alive');
                 res.setHeader('Access-Control-Allow-Origin', '*');
 
-                for await (const chunk of this.chatService.chatStream(body.message)) {
+                for await (const chunk of this.chatService.chatStream(body.messages)) {
                     res.write(`data: ${JSON.stringify({ text: chunk })}\n\n`);
                 }
 
@@ -40,7 +40,7 @@ export class ChatController {
                 res.end();
             } else {
                 // Non-streaming response
-                const text = await this.chatService.chat(body.message);
+                const text = await this.chatService.chat(body.messages);
                 res.json({ text });
             }
         } catch (error) {

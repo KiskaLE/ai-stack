@@ -1,9 +1,9 @@
 import { useState, useRef, useEffect } from 'react';
-import { MessageCircle, X, Send } from 'lucide-react';
+import { MessageCircle, X, Send, Trash2 } from 'lucide-react';
 
 interface Message {
-    text: string;
-    sender: 'user' | 'bot';
+    role: 'user' | 'assistant';
+    content: string;
 }
 
 function App() {
@@ -23,23 +23,28 @@ function App() {
 
     const toggleChat = () => setIsOpen(!isOpen);
 
+    const clearChat = () => {
+        setMessages([]);
+    };
+
     const sendMessage = async () => {
         if (!input.trim() || isLoading) return;
 
         const userMsg = input.trim();
-        setMessages(prev => [...prev, { text: userMsg, sender: 'user' }]);
+        const newMessages: Message[] = [...messages, { role: 'user', content: userMsg }];
+        setMessages(newMessages);
         setInput('');
         setIsLoading(true);
 
-        // Add empty bot message that will be streamed into
-        const botMessageIndex = messages.length + 1;
-        setMessages(prev => [...prev, { text: '', sender: 'bot' }]);
+        // Add empty assistant message that will be streamed into
+        const assistantMessageIndex = newMessages.length;
+        setMessages(prev => [...prev, { role: 'assistant', content: '' }]);
 
         try {
             const response = await fetch('http://localhost:3000/api/chat', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ message: userMsg, stream: true }),
+                body: JSON.stringify({ messages: newMessages, stream: true }),
             });
 
             if (!response.ok) {
@@ -74,10 +79,10 @@ function App() {
                                 accumulatedText += parsed.text;
                                 setMessages(prev => {
                                     const newMessages = [...prev];
-                                    if (newMessages[botMessageIndex]) {
-                                        newMessages[botMessageIndex] = {
-                                            ...newMessages[botMessageIndex],
-                                            text: accumulatedText,
+                                    if (newMessages[assistantMessageIndex]) {
+                                        newMessages[assistantMessageIndex] = {
+                                            ...newMessages[assistantMessageIndex],
+                                            content: accumulatedText,
                                         };
                                     }
                                     return newMessages;
@@ -94,10 +99,10 @@ function App() {
             if (!accumulatedText) {
                 setMessages(prev => {
                     const newMessages = [...prev];
-                    if (newMessages[botMessageIndex]) {
-                        newMessages[botMessageIndex] = {
-                            ...newMessages[botMessageIndex],
-                            text: 'No response received',
+                    if (newMessages[assistantMessageIndex]) {
+                        newMessages[assistantMessageIndex] = {
+                            ...newMessages[assistantMessageIndex],
+                            content: 'No response received',
                         };
                     }
                     return newMessages;
@@ -107,10 +112,10 @@ function App() {
             console.error(error);
             setMessages(prev => {
                 const newMessages = [...prev];
-                if (newMessages[botMessageIndex]) {
-                    newMessages[botMessageIndex] = {
-                        ...newMessages[botMessageIndex],
-                        text: 'Error connecting to server.',
+                if (newMessages[assistantMessageIndex]) {
+                    newMessages[assistantMessageIndex] = {
+                        ...newMessages[assistantMessageIndex],
+                        content: 'Error connecting to server.',
                     };
                 }
                 return newMessages;
@@ -135,24 +140,38 @@ function App() {
                 <div className="fixed bottom-[90px] right-5 w-[350px] h-[500px] bg-white rounded-xl shadow-2xl flex flex-col overflow-hidden z-[1000000] border border-gray-200 animate-in fade-in slide-in-from-bottom-10 duration-200">
                     <div className="p-4 bg-indigo-600 text-white flex justify-between items-center font-semibold">
                         <span>AI Assistant</span>
-                        <button
-                            onClick={toggleChat}
-                            className="bg-transparent border-none text-white cursor-pointer p-1 hover:bg-white/10 rounded"
-                        >
-                            <X size={20} />
-                        </button>
+                        <div className="flex items-center gap-2">
+                            <button
+                                onClick={clearChat}
+                                className="bg-transparent border-none text-white cursor-pointer p-1 hover:bg-white/10 rounded"
+                                title="Clear chat"
+                            >
+                                <Trash2 size={18} />
+                            </button>
+                            <button
+                                onClick={toggleChat}
+                                className="bg-transparent border-none text-white cursor-pointer p-1 hover:bg-white/10 rounded"
+                            >
+                                <X size={20} />
+                            </button>
+                        </div>
                     </div>
 
                     <div className="flex-1 p-4 overflow-y-auto flex flex-col gap-3 bg-gray-50">
+                        {messages.length === 0 && (
+                            <div className="flex-1 flex items-center justify-center text-gray-400 text-sm">
+                                Start a conversation...
+                            </div>
+                        )}
                         {messages.map((msg, idx) => (
                             <div
                                 key={idx}
-                                className={`max-w-[85%] px-3.5 py-2.5 rounded-xl text-sm leading-relaxed shadow-sm ${msg.sender === 'user'
+                                className={`max-w-[85%] px-3.5 py-2.5 rounded-xl text-sm leading-relaxed shadow-sm whitespace-pre-wrap ${msg.role === 'user'
                                     ? 'self-end bg-indigo-600 text-white rounded-br-sm'
                                     : 'self-start bg-white border border-gray-200 text-gray-700 rounded-bl-sm'
                                     }`}
                             >
-                                {msg.text || (msg.sender === 'bot' && isLoading ? '▊' : '')}
+                                {msg.content || (msg.role === 'assistant' && isLoading ? '▊' : '')}
                             </div>
                         ))}
                         <div ref={messagesEndRef} />

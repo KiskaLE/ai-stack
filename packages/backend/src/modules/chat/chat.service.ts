@@ -1,7 +1,12 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { createOpenRouter, OpenRouterProvider } from '@openrouter/ai-sdk-provider';
-import { streamText, generateText } from 'ai';
+import { streamText, generateText, CoreMessage } from 'ai';
+
+export interface ChatMessage {
+    role: 'user' | 'assistant';
+    content: string;
+}
 
 @Injectable()
 export class ChatService {
@@ -21,23 +26,30 @@ export class ChatService {
         });
     }
 
-    async chat(message: string): Promise<string> {
+    async chat(messages: ChatMessage[]): Promise<string> {
         const { text } = await generateText({
             model: this.openrouter.chat(this.model),
-            prompt: message,
+            messages: this.toCoreMessages(messages),
         });
 
         return text;
     }
 
-    async *chatStream(message: string): AsyncGenerator<string> {
+    async *chatStream(messages: ChatMessage[]): AsyncGenerator<string> {
         const result = streamText({
             model: this.openrouter.chat(this.model),
-            prompt: message,
+            messages: this.toCoreMessages(messages),
         });
 
         for await (const chunk of result.textStream) {
             yield chunk;
         }
+    }
+
+    private toCoreMessages(messages: ChatMessage[]): CoreMessage[] {
+        return messages.map(msg => ({
+            role: msg.role,
+            content: msg.content,
+        }));
     }
 }
