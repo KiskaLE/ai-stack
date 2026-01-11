@@ -1,9 +1,57 @@
 import { useState, useRef, useEffect } from 'react';
-import { MessageCircle, X, Send, Trash2 } from 'lucide-react';
+import { MessageCircle, X, Send, Trash2, Wrench, ChevronDown, ChevronRight, Check, Loader2 } from 'lucide-react';
+
+interface ToolCall {
+    toolName: string;
+    args: Record<string, unknown>;
+    result?: unknown;
+    status: 'running' | 'complete';
+}
 
 interface Message {
     role: 'user' | 'assistant';
     content: string;
+    toolCalls?: ToolCall[];
+}
+
+function ToolCallDisplay({ toolCall }: { toolCall: ToolCall }) {
+    const [isExpanded, setIsExpanded] = useState(false);
+
+    return (
+        <div className="flex flex-col rounded-lg bg-gray-50 border border-gray-100 overflow-hidden text-xs">
+            <button
+                onClick={() => setIsExpanded(!isExpanded)}
+                className="flex items-center gap-2 px-3 py-2 w-full hover:bg-gray-100 transition-colors cursor-pointer text-left"
+            >
+                {toolCall.status === 'running' ? (
+                    <Loader2 size={14} className="animate-spin text-indigo-500 shrink-0" />
+                ) : (
+                    <Check size={14} className="text-emerald-500 shrink-0" />
+                )}
+                <span className="font-medium text-gray-700 flex-1">{toolCall.toolName}</span>
+                {isExpanded ? <ChevronDown size={14} className="text-gray-400" /> : <ChevronRight size={14} className="text-gray-400" />}
+            </button>
+
+            {isExpanded && (
+                <div className="px-3 pb-2 pt-0 flex flex-col gap-2">
+                    <div className="flex flex-col gap-0.5">
+                        <span className="text-[10px] uppercase tracking-wider text-gray-400 font-semibold">Input</span>
+                        <div className="font-mono text-gray-600 bg-gray-100 p-1.5 rounded text-[11px] overflow-x-auto">
+                            {JSON.stringify(toolCall.args)}
+                        </div>
+                    </div>
+                    {toolCall.result != null && (
+                        <div className="flex flex-col gap-0.5">
+                            <span className="text-[10px] uppercase tracking-wider text-gray-400 font-semibold">Output</span>
+                            <div className="font-mono text-gray-600 bg-gray-100 p-1.5 rounded text-[11px] overflow-x-auto">
+                                {JSON.stringify(toolCall.result)}
+                            </div>
+                        </div>
+                    )}
+                </div>
+            )}
+        </div>
+    );
 }
 
 function App() {
@@ -75,7 +123,7 @@ function App() {
                         }
                         try {
                             const parsed = JSON.parse(data);
-                            if (parsed.text) {
+                            if (parsed.type === 'text' && parsed.text) {
                                 accumulatedText += parsed.text;
                                 setMessages(prev => {
                                     const newMessages = [...prev];
@@ -83,6 +131,42 @@ function App() {
                                         newMessages[assistantMessageIndex] = {
                                             ...newMessages[assistantMessageIndex],
                                             content: accumulatedText,
+                                        };
+                                    }
+                                    return newMessages;
+                                });
+                            } else if (parsed.type === 'tool-call') {
+                                console.log('🔧 Tool call:', parsed.toolName);
+                                setMessages(prev => {
+                                    const newMessages = [...prev];
+                                    if (newMessages[assistantMessageIndex]) {
+                                        const msg = newMessages[assistantMessageIndex];
+                                        const toolCalls = msg.toolCalls || [];
+                                        newMessages[assistantMessageIndex] = {
+                                            ...msg,
+                                            toolCalls: [...toolCalls, {
+                                                toolName: parsed.toolName,
+                                                args: parsed.args,
+                                                status: 'running' as const,
+                                            }],
+                                        };
+                                    }
+                                    return newMessages;
+                                });
+                            } else if (parsed.type === 'tool-result') {
+                                console.log('✅ Tool result:', parsed.toolName);
+                                setMessages(prev => {
+                                    const newMessages = [...prev];
+                                    if (newMessages[assistantMessageIndex]) {
+                                        const msg = newMessages[assistantMessageIndex];
+                                        const toolCalls = msg.toolCalls?.map(tc =>
+                                            tc.toolName === parsed.toolName && tc.status === 'running'
+                                                ? { ...tc, result: parsed.result, status: 'complete' as const }
+                                                : tc
+                                        );
+                                        newMessages[assistantMessageIndex] = {
+                                            ...msg,
+                                            toolCalls,
                                         };
                                     }
                                     return newMessages;
@@ -164,14 +248,24 @@ function App() {
                             </div>
                         )}
                         {messages.map((msg, idx) => (
-                            <div
-                                key={idx}
-                                className={`max-w-[85%] px-3.5 py-2.5 rounded-xl text-sm leading-relaxed shadow-sm whitespace-pre-wrap ${msg.role === 'user'
-                                    ? 'self-end bg-indigo-600 text-white rounded-br-sm'
-                                    : 'self-start bg-white border border-gray-200 text-gray-700 rounded-bl-sm'
-                                    }`}
-                            >
-                                {msg.content || (msg.role === 'assistant' && isLoading ? '▊' : '')}
+                            <div key={idx} className={`flex flex-col gap-1 ${msg.role === 'user' ? 'self-end items-end' : 'self-start items-start'}`}>
+                                {/* Tool calls above the message - ChatGPT style */}
+                                {msg.toolCalls && msg.toolCalls.length > 0 && (
+                                    <div className="flex flex-col gap-1 mb-1 w-full max-w-[85%]">
+                                        {msg.toolCalls.map((tc, tcIdx) => (
+                                            <ToolCallDisplay key={tcIdx} toolCall={tc} />
+                                        ))}
+                                    </div>
+                                )}
+                                {/* Message bubble */}
+                                <div
+                                    className={`max-w-[85%] px-3.5 py-2.5 rounded-xl text-sm leading-relaxed shadow-sm whitespace-pre-wrap ${msg.role === 'user'
+                                        ? 'bg-indigo-600 text-white rounded-br-sm'
+                                        : 'bg-white border border-gray-200 text-gray-700 rounded-bl-sm'
+                                        }`}
+                                >
+                                    {msg.content || (msg.role === 'assistant' && isLoading ? '▊' : '')}
+                                </div>
                             </div>
                         ))}
                         <div ref={messagesEndRef} />

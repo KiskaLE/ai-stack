@@ -38,16 +38,17 @@ export class ChatService {
         return text;
     }
 
-    async *chatStream(messages: ChatMessage[]): AsyncGenerator<string> {
+    async *chatStream(messages: ChatMessage[]): AsyncGenerator<{ type: string; textDelta?: string; toolName?: string; args?: unknown; result?: unknown }> {
         const result = streamText({
             model: this.openrouter.chat(this.model),
             messages: this.toCoreMessages(messages),
             tools,
             maxSteps: 15,
+            system: 'You are a helpful assistant. Always write in Czech.',
         });
 
-        for await (const chunk of result.textStream) {
-            yield chunk;
+        for await (const chunk of result.fullStream) {
+            yield chunk as { type: string; textDelta?: string; toolName?: string; args?: unknown; result?: unknown };
         }
     }
 

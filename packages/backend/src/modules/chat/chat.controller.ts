@@ -33,7 +33,14 @@ export class ChatController {
                 res.setHeader('Access-Control-Allow-Origin', '*');
 
                 for await (const chunk of this.chatService.chatStream(body.messages)) {
-                    res.write(`data: ${JSON.stringify({ text: chunk })}\n\n`);
+                    console.log('Stream chunk:', chunk.type, chunk);
+                    if (chunk.type === 'text-delta') {
+                        res.write(`data: ${JSON.stringify({ type: 'text', text: chunk.textDelta })}\n\n`);
+                    } else if (chunk.type === 'tool-call') {
+                        res.write(`data: ${JSON.stringify({ type: 'tool-call', toolName: chunk.toolName, args: chunk.args })}\n\n`);
+                    } else if (chunk.type === 'tool-result') {
+                        res.write(`data: ${JSON.stringify({ type: 'tool-result', toolName: chunk.toolName, result: chunk.result })}\n\n`);
+                    }
                 }
 
                 res.write('data: [DONE]\n\n');
