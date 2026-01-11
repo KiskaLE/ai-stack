@@ -91,7 +91,10 @@ function App() {
         try {
             const response = await fetch('http://localhost:3000/api/chat', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-API-KEY': import.meta.env.VITE_API_KEY || '',
+                },
                 body: JSON.stringify({ messages: newMessages, stream: true }),
             });
 
