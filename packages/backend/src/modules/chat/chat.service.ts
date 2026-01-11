@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { createOpenRouter, OpenRouterProvider } from '@openrouter/ai-sdk-provider';
 import { streamText, generateText, CoreMessage } from 'ai';
+import { tools } from './tools';
 
 export interface ChatMessage {
     role: 'user' | 'assistant';
@@ -30,6 +31,8 @@ export class ChatService {
         const { text } = await generateText({
             model: this.openrouter.chat(this.model),
             messages: this.toCoreMessages(messages),
+            tools,
+            maxSteps: 15,
         });
 
         return text;
@@ -39,6 +42,8 @@ export class ChatService {
         const result = streamText({
             model: this.openrouter.chat(this.model),
             messages: this.toCoreMessages(messages),
+            tools,
+            maxSteps: 15,
         });
 
         for await (const chunk of result.textStream) {
