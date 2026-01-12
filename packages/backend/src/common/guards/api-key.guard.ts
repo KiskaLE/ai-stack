@@ -19,7 +19,7 @@ export class ApiKeyGuard implements CanActivate {
         }
 
         const request = context.switchToHttp().getRequest<Request>();
-        const apiKey = request.headers['x-api-key'];
+        const authHeader = request.headers['authorization'];
         const validApiKey = this.configService.get<string>('apiKey');
 
         if (!validApiKey) {
@@ -27,7 +27,13 @@ export class ApiKeyGuard implements CanActivate {
             throw new UnauthorizedException('Server configuration error');
         }
 
-        if (apiKey !== validApiKey) {
+        if (!authHeader || !authHeader.startsWith('Bearer ')) {
+            throw new UnauthorizedException('Missing or invalid Authorization header');
+        }
+
+        const token = authHeader.split(' ')[1];
+
+        if (token !== validApiKey) {
             throw new UnauthorizedException('Invalid API Key');
         }
 

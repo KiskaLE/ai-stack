@@ -1,15 +1,17 @@
 // ==UserScript==
-// @name         AI Widget Loader
-// @namespace    http://tampermonkey.net/
-// @version      0.1
-// @description  Injects AI Widget into the page
-// @author       You
-// @match        *://*/*
-// @grant        none
+// @name        AI chatbot
+// @namespace   usspa
+// @match       *://hana2.usspa.cz:4300/usspa/portal/*
+// @run-at      document-end
+// @grant       none
+// @version     2.0.0
+// @description  Vloží AI bota
 // ==/UserScript==
 
 (function () {
     'use strict';
+
+    injectOverrideCSS();
 
     const WIDGET_URL = 'http://localhost:5173/src/main.tsx'; // Dev
     // const WIDGET_URL = 'http://localhost:3000/static/widget.js'; // Prod
@@ -43,5 +45,17 @@
             script.src = WIDGET_URL;
             document.body.appendChild(script);
         }, 100);
+    }
+
+    function injectOverrideCSS() {
+        const id = 'vojta-override-sapUiForcedHidden';
+        if (document.getElementById(id)) return;
+        const style = document.createElement('style');
+        style.id = id;
+        style.textContent = `
+            /* override hidden rule for our iframe and top-level elements */
+            .ai-chat * { visibility: visible !important; display: block !important; opacity: 1 !important; }
+        `;
+        document.body.appendChild(style);
     }
 })();

@@ -28,7 +28,7 @@ export class ChatController {
                 res.setHeader('Connection', 'keep-alive');
                 res.setHeader('Access-Control-Allow-Origin', '*');
 
-                for await (const chunk of this.chatService.chatStream(body.messages)) {
+                for await (const chunk of this.chatService.chatStream(body.messages, body.context)) {
                     console.log('Stream chunk:', chunk.type, chunk);
                     if (chunk.type === 'text-delta') {
                         res.write(`data: ${JSON.stringify({ type: 'text', text: chunk.textDelta })}\n\n`);
@@ -43,7 +43,7 @@ export class ChatController {
                 res.end();
             } else {
                 // Non-streaming response
-                const text = await this.chatService.chat(body.messages);
+                const text = await this.chatService.chat(body.messages, body.context);
                 res.json({ text });
             }
         } catch (error) {

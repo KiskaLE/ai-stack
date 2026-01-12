@@ -5,7 +5,8 @@ export const createChatSchema = z.object({
         role: z.enum(['user', 'assistant']),
         content: z.string().min(1)
     })).min(1),
-    stream: z.boolean().optional()
+    stream: z.boolean().optional(),
+    context: z.string().optional()
 });
 
 export type CreateChatDto = z.infer<typeof createChatSchema>;
